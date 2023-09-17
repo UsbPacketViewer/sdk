@@ -84,6 +84,8 @@ namespace test_lib_csharp
         public const byte NO_EP = 0xff;
         public const byte NO_ADDR = 0xff;
 
+        private CallbackDelegate callback_delegate = CallBackFunction;
+
         public bool Open(string sn, CaptureSpeed speed = CaptureSpeed.UPV_Cap_Speed_Auto, CaptureFlag flag = CaptureFlag.UPV_FLAG_ALL, bool accpet = true, 
             byte addr1 = NO_ADDR, byte ep1 = NO_EP, byte addr2 = NO_ADDR, byte ep2 = NO_EP, byte addr3 = NO_ADDR, byte ep3 = NO_EP, byte addr4 = NO_ADDR, byte ep4 = NO_EP)
         {
@@ -116,7 +118,7 @@ namespace test_lib_csharp
                     m_this = IntPtr.Zero;
                 }
                 m_this = GCHandle.ToIntPtr(GCHandle.Alloc(this));
-                m_upv = upv_open_device(option, option_len, m_this, CallBackFunction);
+                m_upv = upv_open_device(option, option_len, m_this, callback_delegate);
                 if (m_upv == IntPtr.Zero) {
                     res = false;
                 }
