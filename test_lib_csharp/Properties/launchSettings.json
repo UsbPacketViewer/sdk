@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "test_lib_csharp": {
+      "commandName": "Project",
+      "workingDirectory": "../x64"
+    }
+  }
+}
