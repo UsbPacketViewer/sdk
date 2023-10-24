@@ -20,7 +20,7 @@ ANY_ADDR = 0xff
 ANY_EP   = 0xff
 
 
-upv_data_func_type = ctypes.CFUNCTYPE(ctypes.c_int32, ctypes.py_object, ctypes.c_int32, ctypes.c_int32, ctypes.c_char_p, ctypes.c_int32, ctypes.c_int32)
+upv_data_func_type = ctypes.CFUNCTYPE(ctypes.c_int32, ctypes.py_object, ctypes.c_int32, ctypes.c_int32, ctypes.POINTER(ctypes.c_ubyte), ctypes.c_int32, ctypes.c_int32)
 
 def UPV_Callback(upv, ts, nano, data, data_len, status):
     if upv.on_packet:
@@ -107,7 +107,9 @@ def on_packet(ts, nano, data, data_len, status):
     pkt_type = status & 0xf0
     speed = status & 0x0f
     if pkt_type == 0:
-        print( f"[{ts}.{nano}] PID: {data[0]:02x} LEN:{data_len} Spd: {speedStr[speed&0x03]}")
+        # hex_string = ' '.join(hex(data[i]) for i in range(data_len))
+        # print(hex_string)
+        print( f"[{ts}.{nano}] PID: {data[0]:02x} {data[data_len-1]:02x} LEN:{data_len} Spd: {speedStr[speed&0x03]}")
     else:
         print( f"[{ts}.{nano}] bus event {busEventStr[pkt_type>>4]}")
     return 0
