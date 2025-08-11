@@ -49,6 +49,14 @@ class UPV:
         self.lib.upv_get_monitor_speed.argtypes = [ctypes.c_void_p]
         self.lib.upv_get_monitor_speed.restype = ctypes.c_int
 
+        def wrap_UPV_Callback(upv, ts, nano, data, data_len, status):
+            if self.on_packet:
+                self.on_packet(ts, nano, data, data_len, status)
+            else:
+                print("UPV_Callback", data_len)
+            return 0
+        self.c_upv_callback = upv_data_func_type(wrap_UPV_Callback)
+
 
         self.dev = None
 
@@ -93,7 +101,7 @@ class UPV:
         option[param_idx+9] = addr4
         option[param_idx+10] = ep4
         print(option.value)
-        self.dev = self.lib.upv_open_device(option, opt_len, self, packet_handler)
+        self.dev = self.lib.upv_open_device(option, opt_len, self, self.c_upv_callback)
         if not self.dev:
             print("Fail to open",sn,"  Reason:", self.last_error())
         return self.dev != None
