@@ -20,11 +20,20 @@ ANY_ADDR = 0xff
 ANY_EP   = 0xff
 
 
-upv_data_func_type = ctypes.CFUNCTYPE(ctypes.c_int32, ctypes.py_object, ctypes.c_int32, ctypes.c_int32, ctypes.c_char_p, ctypes.c_int32, ctypes.c_int32)
+upv_data_func_type = ctypes.CFUNCTYPE(ctypes.c_int32, ctypes.py_object, ctypes.c_int32, ctypes.c_int32, ctypes.POINTER(ctypes.c_ubyte), ctypes.c_int32, ctypes.c_int32)
+
+def UPV_Callback(upv, ts, nano, data, data_len, status):
+    if upv.on_packet:
+        upv.on_packet(ts, nano, data, data_len, status)
+    else:
+        print(ts,nano,data_len,status)
+    return 0
+
+packet_handler = upv_data_func_type(UPV_Callback)
 
 class UPV:
     def __init__(self):
-        self.lib = ctypes.CDLL('./usbpv_lib')
+        self.lib = ctypes.CDLL('./x64/usbpv_lib')
         self.lib.upv_list_devices.restype = ctypes.c_char_p
 
         self.lib.upv_open_device.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.py_object, upv_data_func_type]
@@ -36,15 +45,10 @@ class UPV:
         self.lib.upv_get_last_error.restype = ctypes.c_int
         self.lib.upv_get_error_string.argtypes =  [ctypes.c_int]
         self.lib.upv_get_error_string.restype = ctypes.c_char_p
-        self.on_packet = None
 
-        def wrap_UPV_Callback(upv, ts, nano, data, data_len, status):
-            if self.on_packet:
-                self.on_packet(ts, nano, data, data_len, status)
-            else:
-                print(data_len)
-            return 0
-        self.c_upv_callback = upv_data_func_type(wrap_UPV_Callback)
+        self.lib.upv_get_monitor_speed.argtypes = [ctypes.c_void_p]
+        self.lib.upv_get_monitor_speed.restype = ctypes.c_int
+
 
         self.dev = None
 
@@ -68,6 +72,9 @@ class UPV:
         if r != 0:
             print("Fail to close device", self.last_error())
         return r == 0
+    def isUSB30(self):
+        r = self.lib.upv_get_monitor_speed(self.dev)
+        return r == 1
 
     def open(self, sn, speed = CapSpeed.AutoSpeed, flag = CapFlag.ALL, accept = True, addr1 = ANY_ADDR, ep1 = ANY_EP, addr2 = ANY_ADDR, ep2 = ANY_EP, addr3 = ANY_ADDR, ep3 = ANY_EP, addr4 = ANY_ADDR, ep4 = ANY_EP):
         #print("open",sn, speed, flag, accept, addr1,ep1,addr2,ep2,addr3,ep3,addr4,ep4)
@@ -86,13 +93,25 @@ class UPV:
         option[param_idx+9] = addr4
         option[param_idx+10] = ep4
         print(option.value)
-        self.dev = self.lib.upv_open_device(option, opt_len, self, self.c_upv_callback)
+        self.dev = self.lib.upv_open_device(option, opt_len, self, packet_handler)
         if not self.dev:
             print("Fail to open",sn,"  Reason:", self.last_error())
         return self.dev != None
 
-def on_packet(ts, nano, data, len, status):
-    print(ts,nano,"got ",len,"bytes data")
+speedStr = ['Xxxx','Low ','Full','High']
+busEventStr = ['Packet', 'Reset begin', 'Reset end', 'Suspend begin', 
+               'Suspend End', 'Unknown', 'Unknown', 'Unknown',
+               'Unknown','Unknown','Unknown','Unknown',
+               'Unknown','Unknown','Unknown','Overflow']
+def on_packet(ts, nano, data, data_len, status):
+    pkt_type = status & 0xf0
+    speed = status & 0x0f
+    if pkt_type == 0:
+        # hex_string = ' '.join(hex(data[i]) for i in range(data_len))
+        # print(hex_string)
+        print( f"[{ts}.{nano}] PID: {data[0]:02x} {data[data_len-1]:02x} LEN:{data_len} Spd: {speedStr[speed&0x03]}")
+    else:
+        print( f"[{ts}.{nano}] bus event {busEventStr[pkt_type>>4]}")
     return 0
 
 def run_test():
@@ -105,7 +124,11 @@ def run_test():
         print(dev)
 
     upv.on_packet = on_packet
-    upv.open(devs[0], CapSpeed.HighSpeed)
+    res = upv.open(devs[0])
+    if not res:
+        print("Fail to open", devs[0], upv.last_error())
+        return
+    print("Monitor speed is ",'Super speed' if upv.isUSB30() else 'High speed')
     input("press any key to exit")
     upv.close()
 
